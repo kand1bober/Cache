@@ -2,6 +2,7 @@
 #include <unordered_map>
 #include <iostream>
 #include <cassert>
+#include <iterator> 
 
 struct page_t 
 {
@@ -45,6 +46,16 @@ struct cache_t
             cache_.push_front(slow_get_page(key));
             hash_[key] = cache_.begin();
             return false;
+        }
+        else 
+        {
+            auto found = hit->second;
+            if (found != cache_.begin())
+            {
+                cache_.splice(cache_.begin(), cache_, found, std::next(found));
+            }
+
+            return true;
         }
     }
 };
