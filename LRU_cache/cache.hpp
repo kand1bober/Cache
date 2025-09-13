@@ -4,11 +4,13 @@
 #include <cassert>
 #include <iterator> 
 
+
 struct page_t 
 {
     int id;
     size_t size;
 };
+
 
 page_t slow_get_page(int id)
 {
@@ -16,11 +18,14 @@ page_t slow_get_page(int id)
     return page;
 }
 
+
 template <typename T, typename KeyT = int>
 struct cache_t 
 {
     size_t sz_;
     std::list<T> cache_;
+
+    cache_t(size_t sz) : sz_(sz) {}; //ctor
 
     using ListIt = typename std::list<T>::iterator;
     std::unordered_map<KeyT, ListIt> hash_;
@@ -59,26 +64,3 @@ struct cache_t
         }
     }
 };
-
-
-int main()
-{
-    cache_t<page_t> cache;
-
-    auto cache_sz = 0, input_sz = 0;
-    std::cin >> cache_sz >> input_sz;
-    cache.sz_ = cache_sz;
-
-    int hits = 0;
-    for (int i = 0; i < input_sz; i++)
-    {
-        int page_id;
-        std::cin >> page_id; 
-        assert(std::cin.good());
-        if (cache.lookup_update(page_id, slow_get_page)) hits += 1;
-    }
-
-    std::cout << hits << "\n";
-
-    return 0;
-}
