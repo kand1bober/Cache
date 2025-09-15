@@ -118,22 +118,12 @@ struct custom_cache_t
         }
     }
 
-    template <typename F>
-    bool B2_lookup_upate(KeyT key, F slow_get_page)
+
+    bool B2_lookup_upate(KeyT key)
     {
         auto hit = hash_.find(key);
         if (hit == hash_.end()) //not found 
-        {
-            if (full())
-            {
-                hash_.erase(cache_.back().id);
-                cache_.pop_back();
-            }
-
-            cache_.push_front(slow_get_page(key));
-            hash_[key] = cache_.begin();
             return false;
-        }
         else 
         {
             auto found = hit->second;
@@ -141,7 +131,6 @@ struct custom_cache_t
             {
                 cache_.splice(cache_.begin(), cache_, found, std::next(found));
             }
-
             return true;
         }
     }
@@ -179,18 +168,50 @@ public:
     template<typename F>
     bool lookup_update(KeyT key, F slow_get_page)
     {
+        if (T2_cache_.T2_lookup_update(T1_cache_))
+        {
+            return true;
+        } 
+        else if (T1_cache_.lookup_upadte(B2_cache_))
+        {
+            // replace from T1 to T2 with splice
+            return true;
+        }  
+        else if (B2_cache_.lookup_update(B1_cache_))  
+        {
+            // shift T2 to left (increase T2 and shrink T1) 
+
+            return true;
+        }
+        else if (B1_cache_.lookup_update(page_id, slow_get_page))
+        {
+            
+            return true;
+        }
+        else
+        {
+
+        }
+    }
+ 
+    // evict from T-type cache to corresponding B -type cache 
+    template<typename T_type, typename B_type>
+    void evict_page(T_type T, B_type B)
+    {
+    
+    }
+
+    //increase T1, shrink T2
+    template<typename T_type>
+    void shift_right(T_type T1, T_type T2)
+    {
 
     }
 
-    bool lookup_update()
+    //increase T2, shrink T1
+    template<typename T_type>
+    void shift_left(T_type T1, T_type T2)
     {
-        if (is in T2)
-            T2_cache_.T2_lookup_update(T1_cache_);    
-        else if (is in T1)
-            T1_cache_.lookup_upadte(B2_cache_);
-        else if (is in B2)  
-            B2_cache_.lookup_update(B1_cache_);
-        else (is in B1)
-            B1_cache_.lookup_update(page_id, slow_get_page);
+
     }
 };
