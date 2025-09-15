@@ -19,13 +19,17 @@ page_t slow_get_page(int id)
 }
 
 
+/*
+* requires the type T to have field named id, 
+* to differ one page from another
+*/
 template <typename T, typename KeyT = int>
-struct cache_t 
+struct LRU_cache_t 
 {
     size_t sz_;
     std::list<T> cache_;
 
-    cache_t(size_t sz) : sz_(sz) {}; //ctor
+    LRU_cache_t(size_t sz) : sz_(sz) {}; //ctor
 
     using ListIt = typename std::list<T>::iterator;
     std::unordered_map<KeyT, ListIt> hash_;

@@ -6,7 +6,7 @@ int main()
     auto cache_sz = 0, input_sz = 0;
     std::cin >> cache_sz >> input_sz;
 
-    cache_t<page_t> cache{cache_sz};
+    LRU_cache_t<page_t> cache{cache_sz};
 
     int hits = 0;
     for (int i = 0; i < input_sz; i++)

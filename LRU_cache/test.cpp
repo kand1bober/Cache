@@ -32,7 +32,7 @@ int main()
             numbers.push_back(number);
         }
 
-        cache_t<page_t> cache{numbers[0]};
+        LRU_cache_t<page_t> cache{numbers[0]};
         
         int i, hits = 0;
         for (i = 0; i < numbers[1]; i++)
