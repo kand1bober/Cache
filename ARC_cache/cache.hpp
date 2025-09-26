@@ -90,7 +90,7 @@ private:
     template<typename T_cache, typename B_cache>
     void shift_L_cache(T_cache& TC, B_cache& BC)
     {
-        if (TC.full())
+        if (TC.full() && TC.cache_.size() > 0)
         {
             if (BC.full())
             {
@@ -98,10 +98,13 @@ private:
                 BC.hash_.erase(BC.cache_.back().id);
                 BC.cache_.pop_back();
             }
-            BC.cache_.push_front((empty_page){.id = TC.cache_.back().id});
+            auto evicted_id = TC.cache_.back().id;
+
+            BC.cache_.push_front((empty_page){.id = evicted_id});
+            BC.hash_[evicted_id] = BC.cache_.begin();
 
             //erase last from T1
-            TC.hash_.erase(TC.cache_.back().id);
+            TC.hash_.erase(evicted_id);
             TC.cache_.pop_back();
         }
     }
@@ -127,50 +130,49 @@ public:
         B1_((sz%2 == 0) ? (sz/2) : (sz+1)/2), 
         B2_((sz%2 == 0) ? (sz/2) : (sz-1)/2)
     {
-        if (sz_ < 2) {
-            std::cerr << "Too little size of cache for ARC" << std::endl;
-            exit(1);
+        if (sz_ < 1) {
+            std::cerr << "Too little size of cache" << std::endl;
+            exit(0);
         }
     };  
 
     template<typename F>
     bool lookup_update(KeyT key, F slow_get_page)
     {
-        if (T2_.lookup(key))
+        if (T2_.lookup(key)) //взять из T2 и переместить по принципу LRU
         {
-            //взять из T2 и переместить по принципу LRU
+            // std::cout << "T2\n";
             T2_.LRU_pop(key);
             return true;
         } 
-        else if (T1_.lookup(key))
+        else if (T1_.lookup(key)) //shift L2 + evict from L1 -> add_front L2
         {
-            //shift L2 + evict(точечно) from L1 -> add_front L2
+            // std::cout << "T1\n";
             shift_L_cache(T2_, B2_);
             evict_and_settle(T1_, T2_, key);
             return true;
         }  
-        else if (B2_.lookup(key))  
+        else if (B2_.lookup(key)) // shift L1 + add_front L2 
         {
-            // shift L1 + add_front L2 // shift подазумевает удаление элемента 
-            // из хвоста L-кэша, если он заполнен
+            // std::cout << "B2\n"; 
             T1_.sz_ -= 1;
             shift_L_cache(T1_, B1_);
             T2_.sz_ += 1;
             T2_.cache_.push_front(slow_get_page(key));
             return false;
         }
-        else if (B1_.lookup(key))
-        {
-            // shift L2 + add_front L1 
+        else if (B1_.lookup(key)) // shift L2 + add_front L1
+        { 
+            // std::cout << "B1\n";
             T2_.sz_ -= 1;
             shift_L_cache(T2_, B2_);
             T1_.sz_ += 1;
             T1_.push_front(slow_get_page(key));
             return false;
         }
-        else
+        else // shift L1 + add_front L1
         {
-            // shift L1 + add_front L1
+            // std::cout << "slow\n";
             shift_L_cache(T1_, B1_);
             T1_.push_front(slow_get_page(key));
             return false;
