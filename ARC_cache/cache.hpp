@@ -4,6 +4,8 @@
 #include <cassert>
 #include <iterator> 
 
+#ifndef ARC_CACHE_HEADER
+#define ARC_CACHE_HEADER
 
 struct page_t
 {
@@ -12,155 +14,121 @@ struct page_t
 };
 
 
-struct emtpy_page {};
+struct empty_page 
+{
+    int id;
+};
+
+
+page_t slow_get_page(int id)
+{
+    page_t page = {id, 0};
+    return page;
+}
+
 
 /*
 * requires the type T to have field named id, 
 * to differ one page from another
 */
 template<typename T, typename KeyT = int>
-struct custom_cache_t
+struct cache_t
 {
     size_t sz_;
-    std::list<T> cache_;
+    std::list<T> cache_; //list
 
-    custom_cache_t(size_t sz) : sz_(sz) {}; //ctor
+    cache_t(size_t sz) : sz_(sz) {}; //ctor
 
-    using ListIt = typename std::list<T>::iterator;
+    using ListIt = typename std::list<T>::iterator; //hash_table
     std::unordered_map<KeyT, ListIt> hash_;
 
     bool full() const
     {
         return (cache_.size() >= sz_);
     }
-    
-    template <typename F>
-    bool T1_lookup_update(KeyT key, F slow_get_page)
+
+    bool lookup(KeyT key) const
     {
         auto hit = hash_.find(key);
         if (hit == hash_.end()) //not found 
-        {
-            if (full())
-            {
-                hash_.erase(cache_.back().id);
-                cache_.pop_back();
-            }
-
-            cache_.push_front(slow_get_page(key));
-            hash_[key] = cache_.begin();
             return false;
-        }
         else 
-        {
-            auto found = hit->second;
-            if (found != cache_.begin())
-            {
-                cache_.splice(cache_.begin(), cache_, found, std::next(found));
-            }
-
             return true;
-        }
     }
 
-    template <typename F>
-    bool T2_lookup_upate(KeyT key, F slow_get_page)
+    void push_front(T page) 
     {
-        auto hit = hash_.find(key);
-        if (hit == hash_.end()) //not found 
-        {
-            if (full())
-            {
-                hash_.erase(cache_.back().id);
-                cache_.pop_back();
-            }
-
-            cache_.push_front(slow_get_page(key));
-            hash_[key] = cache_.begin();
-            return false;
-        }
-        else 
-        {
-            auto found = hit->second;
-            if (found != cache_.begin())
-            {
-                cache_.splice(cache_.begin(), cache_, found, std::next(found));
-            }
-
-            return true; // --> return page_t
-        }
+        cache_.push_front(page);
+        hash_[page.id] = cache_.begin();
     }
 
-    template <typename F>
-    bool B1_lookup_upate(KeyT key, F slow_get_page)
-    {
-        auto hit = hash_.find(key);
-        if (hit == hash_.end()) //not found 
-        {
-            if (full())
-            {
-                hash_.erase(cache_.back().id);
-                cache_.pop_back();
-            }
+    bool LRU_pop(KeyT key)
+    {   
+        auto found = hash_.find(key)->second;
+        if (found != cache_.begin())
+            cache_.splice(cache_.begin(), cache_, found, std::next(found));
 
-            cache_.push_front(slow_get_page(key));
-            hash_[key] = cache_.begin();
-            return false;
-        }
-        else 
-        {
-            auto found = hit->second;
-            if (found != cache_.begin())
-            {
-                cache_.splice(cache_.begin(), cache_, found, std::next(found));
-            }
-
-            return true;
-        }
-    }
-
-
-    bool B2_lookup_upate(KeyT key)
-    {
-        auto hit = hash_.find(key);
-        if (hit == hash_.end()) //not found 
-            return false;
-        else 
-        {
-            auto found = hit->second;
-            if (found != cache_.begin())
-            {
-                cache_.splice(cache_.begin(), cache_, found, std::next(found));
-            }
-            return true;
-        }
+        return true;        
     }
 };
 
 
 /*
-* requires the type T to have field named id, 
+* requires the type T of page to have field named id, 
 * to differ one page from another
 */
 template<typename T, typename KeyT = int>
 struct ARC_cache_t
 {
 private:
-    size_t sz_;
-    LRU_cache_t<T, KeyT> T1_cache_;     
-    LRU_cache_t<T, KeyT> T2_cache_;     
-    LRU_cache_t<T, empty_page> B1_cache_;     
-    LRU_cache_t<T, empty_page> B2_cache_;     
+    size_t sz_; //sz = sz_T1 + sz_T2 = sz_B1 + sz_B2 --> sz_ is const
+    cache_t<T, KeyT> T1_;     
+    cache_t<T, KeyT> T2_;     
+    cache_t<empty_page, KeyT> B1_;     
+    cache_t<empty_page, KeyT> B2_;     
+
+    template<typename T_cache, typename B_cache>
+    void shift_L_cache(T_cache& TC, B_cache& BC)
+    {
+        if (TC.full())
+        {
+            if (BC.full())
+            {
+                //last from T1 --> first in B1
+                BC.hash_.erase(BC.cache_.back().id);
+                BC.cache_.pop_back();
+            }
+            BC.cache_.push_front((empty_page){.id = TC.cache_.back().id});
+
+            //erase last from T1
+            TC.hash_.erase(TC.cache_.back().id);
+            TC.cache_.pop_back();
+        }
+    }
+
+    //evicts from A, settles to head of B
+    template<typename T_cache>
+    void evict_and_settle(T_cache& A, T_cache& B, KeyT key)
+    {
+        auto it = A.hash_.find(key);
+        assert(it != A.hash_.end());
+        auto found = it->second;
+
+        A.hash_.erase(key);
+        B.cache_.splice(B.cache_.begin(), A.cache_, found, std::next(found));
+        B.hash_[key] = found;
+    }
 
 public:
-    ARC_cache_t(size_t sz) :
-        sz_(sz), 
-        T1_cache_(0), 
-        T2_cache_(0), 
-        B1_cache_(0), 
-        B2_cache_(0) 
+    ARC_cache_t(size_t sz) : //ctor
+        sz_(sz),
+        T1_((sz%2 == 0) ? (sz/2) : (sz+1)/2), 
+        T2_((sz%2 == 0) ? (sz/2) : (sz-1)/2), 
+        B1_((sz%2 == 0) ? (sz/2) : (sz+1)/2), 
+        B2_((sz%2 == 0) ? (sz/2) : (sz-1)/2)
     {
-        if (sz_ < 4) {
-            std::cerr << Too little size of cache for ARC << std::endl;
+        if (sz_ < 2) {
+            std::cerr << "Too little size of cache for ARC" << std::endl;
             exit(1);
         }
     };  
@@ -168,50 +136,46 @@ public:
     template<typename F>
     bool lookup_update(KeyT key, F slow_get_page)
     {
-        if (T2_cache_.T2_lookup_update(T1_cache_))
+        if (T2_.lookup(key))
         {
+            //взять из T2 и переместить по принципу LRU
+            T2_.LRU_pop(key);
             return true;
         } 
-        else if (T1_cache_.lookup_upadte(B2_cache_))
+        else if (T1_.lookup(key))
         {
-            // replace from T1 to T2 with splice
+            //shift L2 + evict(точечно) from L1 -> add_front L2
+            shift_L_cache(T2_, B2_);
+            evict_and_settle(T1_, T2_, key);
             return true;
         }  
-        else if (B2_cache_.lookup_update(B1_cache_))  
+        else if (B2_.lookup(key))  
         {
-            // shift T2 to left (increase T2 and shrink T1) 
-
-            return true;
+            // shift L1 + add_front L2 // shift подазумевает удаление элемента 
+            // из хвоста L-кэша, если он заполнен
+            T1_.sz_ -= 1;
+            shift_L_cache(T1_, B1_);
+            T2_.sz_ += 1;
+            T2_.cache_.push_front(slow_get_page(key));
+            return false;
         }
-        else if (B1_cache_.lookup_update(page_id, slow_get_page))
+        else if (B1_.lookup(key))
         {
-            
-            return true;
+            // shift L2 + add_front L1 
+            T2_.sz_ -= 1;
+            shift_L_cache(T2_, B2_);
+            T1_.sz_ += 1;
+            T1_.push_front(slow_get_page(key));
+            return false;
         }
         else
         {
-
+            // shift L1 + add_front L1
+            shift_L_cache(T1_, B1_);
+            T1_.push_front(slow_get_page(key));
+            return false;
         }
     }
- 
-    // evict from T-type cache to corresponding B -type cache 
-    template<typename T_type, typename B_type>
-    void evict_page(T_type T, B_type B)
-    {
-    
-    }
-
-    //increase T1, shrink T2
-    template<typename T_type>
-    void shift_right(T_type T1, T_type T2)
-    {
-
-    }
-
-    //increase T2, shrink T1
-    template<typename T_type>
-    void shift_left(T_type T1, T_type T2)
-    {
-
-    }
 };
+
+#endif

@@ -38,7 +38,6 @@ struct LRU_cache_t
     {
         return (cache_.size() >= sz_);
     }
-    
 
     template <typename F>
     bool lookup_update(KeyT key, F slow_get_page)
