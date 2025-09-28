@@ -7,6 +7,14 @@
 #ifndef ARC_CACHE_HEADER
 #define ARC_CACHE_HEADER
 
+// #define DEBUG
+
+#ifdef DEBUG
+    #define DEBUG_PRINT(expr) expr
+#else 
+    #define DEBUG_PRINT(expr) 
+#endif
+
 struct page_t
 {
     int id;
@@ -47,6 +55,17 @@ struct cache_t
         return (cache_.size() >= sz_);
     }
 
+    bool shrink()
+    {
+        if (sz_ > 0)
+        {
+            sz_ -= 1;
+            return true;
+        }
+        else 
+            return false;
+    }
+
     bool lookup(KeyT key) const
     {
         auto hit = hash_.find(key);
@@ -60,6 +79,12 @@ struct cache_t
     {
         cache_.push_front(page);
         hash_[page.id] = cache_.begin();
+    }
+
+    void pop_back(KeyT key)
+    {
+        hash_.erase(key);
+        cache_.pop_back();
     }
 
     bool LRU_pop(KeyT key)
@@ -141,40 +166,69 @@ public:
     {
         if (T2_.lookup(key)) //взять из T2 и переместить по принципу LRU
         {
-            // std::cout << "T2\n";
             T2_.LRU_pop(key);
+            
+            DEBUG_PRINT(std::cout << "T2\n";)
+            DEBUG_PRINT(std::cout << "T1_sz: " << T1_.sz_ << "; T2_sz: " << T2_.sz_ << "\n";)
+
             return true;
         } 
         else if (T1_.lookup(key)) //shift L2 + evict from L1 -> add_front L2
         {
-            // std::cout << "T1\n";
             shift_L_cache(T2_, B2_);
             evict_and_settle(T1_, T2_, key);
+            
+            DEBUG_PRINT(std::cout << "T1\n";)
+            DEBUG_PRINT(std::cout << "T1_sz: " << T1_.sz_ << "; T2_sz: " << T2_.sz_ << "\n";)
+
             return true;
         }  
         else if (B2_.lookup(key)) // shift L1 + add_front L2 
         {
-            // std::cout << "B2\n"; 
-            T1_.sz_ -= 1;
-            shift_L_cache(T1_, B1_);
-            T2_.sz_ += 1;
-            T2_.cache_.push_front(slow_get_page(key));
+            if (T1_.shrink()) // there is still a place to grow T2
+            {
+                shift_L_cache(T1_, B1_);
+                T2_.sz_ += 1;
+                T2_.cache_.push_front(slow_get_page(key));
+            }
+            else // there is no more place to grow T1 
+            {
+                shift_L_cache(T2_, B2_);
+                T2_.push_front(slow_get_page(key));
+            }
+
+            DEBUG_PRINT(std::cout << "B2\n";)
+            DEBUG_PRINT(std::cout << "T1_sz: " << T1_.sz_ << "; T2_sz: " << T2_.sz_ << "\n";)
+
             return false;
         }
         else if (B1_.lookup(key)) // shift L2 + add_front L1
         { 
-            // std::cout << "B1\n";
-            T2_.sz_ -= 1;
-            shift_L_cache(T2_, B2_);
-            T1_.sz_ += 1;
-            T1_.push_front(slow_get_page(key));
+            if (T2_.shrink()) // there is still a place to grow T1
+            {
+                shift_L_cache(T2_, B2_);
+                T1_.sz_ += 1;
+                T1_.push_front(slow_get_page(key));
+            } 
+            else // there is no more place to grow T1 
+            {
+                shift_L_cache(T1_, B1_);
+                T1_.push_front(slow_get_page(key));
+            }
+
+            DEBUG_PRINT(std::cout << "B1\n";)
+            DEBUG_PRINT(std::cout << "T1_sz: " << T1_.sz_ << "; T2_sz: " << T2_.sz_ << "\n";)
+
             return false;
         }
         else // shift L1 + add_front L1
         {
-            // std::cout << "slow\n";
             shift_L_cache(T1_, B1_);
             T1_.push_front(slow_get_page(key));
+            
+            DEBUG_PRINT(std::cout << "slow\n";)
+            DEBUG_PRINT(std::cout << "T1_sz: " << T1_.sz_ << "; T2_sz: " << T2_.sz_ << "\n";)
+
             return false;
         }
     }
