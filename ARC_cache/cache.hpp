@@ -4,6 +4,8 @@
 #include <cassert>
 #include <iterator> 
 
+#include "page.hpp"
+
 #ifndef ARC_CACHE_HEADER
 #define ARC_CACHE_HEADER
 
@@ -14,25 +16,6 @@
 #else 
     #define DEBUG_PRINT(expr) 
 #endif
-
-struct page_t
-{
-    int id;
-    size_t sz;
-};
-
-
-struct empty_page 
-{
-    int id;
-};
-
-
-page_t slow_get_page(int id)
-{
-    page_t page = {id, 0};
-    return page;
-}
 
 
 /*

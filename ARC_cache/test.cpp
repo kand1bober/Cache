@@ -5,6 +5,7 @@
 #include <sstream>
 
 #include "cache.hpp"
+#include "ideal_cache.hpp"
 
 int main()
 {    
@@ -29,28 +30,37 @@ int main()
         int number;
         while (iss_line >> number)
         {
-            // std::cout << "" << number << " "; 
+            // std::cout << number << " "; 
             num_arr.push_back(number);
         }
+        num_arr.shrink_to_fit();
 
-        ARC_cache_t<page_t> cache{(size_t)num_arr[0]};
-        
-        int i = 0, hits = 0;
+        ideal_cache_t<page_t> ideal_cache{(size_t)num_arr[0]};
+        ideal_cache.fill(num_arr);        
+
+        ARC_cache_t<page_t> arc_cache{(size_t)num_arr[0]};
+
+        int i = 0, arc_hits = 0, ideal_hits = 0;
         for (; i < num_arr[1]; i++)
         {
-            if (cache.lookup_update(num_arr[i + 2], slow_get_page)) hits += 1;
+            if (arc_cache.lookup_update(num_arr[i + 2], slow_get_page)) arc_hits += 1;
+            if (ideal_cache.lookup_update(num_arr[i + 2])) ideal_hits += 1;
+        }   
 
-        }
         std::cout << "Test " << test_count << ": ";
-        if (hits == num_arr[i + 2])
-            std::cout << "passed\n\n";
+        if (arc_hits == num_arr[i + 2])
+        {
+            std::cout << "passed, hits: " << arc_hits << "\n";
+            std::cout << "ideal cache hits: " << ideal_hits << "\n\n";
+        }
         else 
-            std::cout << "failed, ans: " << num_arr[i + 2] << ", out: " << hits <<"\n\n";
+            std::cout << "failed, ans: " << num_arr[i + 2] << ", out: " << arc_hits <<"\n";
 
         test_count += 1;
-    }
 
+    }
     tests_file.close();
+    
     return 0;
 }
 
