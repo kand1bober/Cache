@@ -145,6 +145,9 @@ private:
         A.hash_.erase(key);
         B.cache_.splice(B.cache_.begin(), A.cache_, found, std::next(found));
         B.hash_[key] = found;
+
+        A.sz_ -= 1;
+        B.sz_ += 1;
     }
 
 public:
@@ -177,7 +180,7 @@ public:
         {
             shift_L_cache(T2_, B2_);
             evict_and_settle(T1_, T2_, key);
-            
+
             DEBUG_PRINT(std::cout << "T1\n";)
             DEBUG_PRINT(std::cout << "T1_sz: " << T1_.sz_ << "; T2_sz: " << T2_.sz_ << "\n";)
 
