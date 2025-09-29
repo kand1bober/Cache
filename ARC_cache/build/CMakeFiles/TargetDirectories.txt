@@ -1,0 +1,4 @@
+/home/vyacheslav/Cache/ARC_cache/build/CMakeFiles/cache_lib.dir
+/home/vyacheslav/Cache/ARC_cache/build/CMakeFiles/a.dir
+/home/vyacheslav/Cache/ARC_cache/build/CMakeFiles/edit_cache.dir
+/home/vyacheslav/Cache/ARC_cache/build/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/a.dir/src/main.cpp.o -o a  libcache_lib.a 
